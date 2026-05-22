@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Check Neo4j",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/check_neo4j.py",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Build KG From Text",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/build_kg_from_text.py",
+      "args": ["--input", "data/sample_petrochemical.txt"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Build Demo KG No LLM",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/build_demo_kg_no_llm.py",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Build KG From PDF",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/build_kg_from_pdf.py",
+      "args": ["--input", "data/your_file.pdf"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

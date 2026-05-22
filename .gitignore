@@ -1,0 +1,40 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+config.local.yaml
+Neo4j-*-Created-*.txt
+*Created-*.txt
+
+# Python runtime
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Generated pipeline data
+data/
+output/
+source/
+.tmp/
+logs/
+*.log
+
+# Large ingestion artifacts
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+
+# Neo4j local artifacts
+*.db
+*.dump
+*.backup
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
