@@ -33,7 +33,7 @@ DEEPSEEK_EXTRA_BODY = (
 
 
 def parse_int_list(value: str) -> list[int]:
-    return [int(part.strip()) for part in value.split(",") if part.strip()]
+    return [int(part.strip()) for part in value.split(",") if part.strip() and int(part.strip()) > 0]
 
 
 def normalize_key(value: Any) -> str:
@@ -546,6 +546,18 @@ def build_context(vector_items: list[dict[str, Any]], rels: list[dict[str, Any]]
     return "\n\n".join(parts)
 
 
+def filter_context_mode(
+    vector_items: list[dict[str, Any]],
+    rels: list[dict[str, Any]],
+    mode: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if mode == "vector":
+        return vector_items, []
+    if mode == "graph":
+        return [], rels
+    return vector_items, rels
+
+
 def call_answer_llm(question: str, context: str) -> str:
     if LLM_PROVIDER != "deepseek" or not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY.startswith("sk-your-"):
         return ""
@@ -620,6 +632,7 @@ def evaluate_sample(
     graph_ks: list[int],
     run_answer: bool,
     judge_answer: bool,
+    mode: str = "hybrid",
 ) -> dict[str, Any]:
     expected_pages = normalize_pages(sample.get("expected_pages"))
     expected_chunks = normalize_chunk_refs(sample.get("expected_chunks") or sample.get("expected_source_refs"))
@@ -627,6 +640,7 @@ def evaluate_sample(
     expected_triples = normalize_triples(sample.get("expected_triples"))
     page_relevance = parse_relevance(sample.get("relevant_pages"), expected_pages)
     chunk_relevance = parse_relevance(sample.get("relevant_chunks"), expected_chunks)
+    vector_items, rels = filter_context_mode(vector_items, rels, mode)
 
     metrics: dict[str, float | None] = {}
     for k in ks:
@@ -750,6 +764,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ks", default="3,5,10", help="Vector/citation K values, e.g. 3,5,10.")
     parser.add_argument("--graph-ks", default=None, help="Graph K values. Defaults to --ks.")
     parser.add_argument("--min-rel-confidence", type=float, default=0.70, help="Minimum relationship confidence used by graph retrieval.")
+    parser.add_argument("--mode", choices=["hybrid", "vector", "graph"], default="hybrid", help="Which evidence source to evaluate.")
     parser.add_argument("--run-answer", action="store_true", help="Also call the configured LLM and compute answer-level metrics.")
     parser.add_argument("--judge-answer", action="store_true", help="Use the configured LLM as a judge for answer support and hallucination.")
     return parser.parse_args()
@@ -765,7 +780,7 @@ def main() -> None:
     ks = sorted(set(parse_int_list(args.ks)))
     graph_ks = sorted(set(parse_int_list(args.graph_ks or args.ks)))
     max_vector_k = max(ks)
-    max_graph_k = max(graph_ks)
+    max_graph_k = max(graph_ks) if graph_ks else 0
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = Path(args.output) if args.output else Path("output") / f"retrieval_eval_{run_id}.json"
     csv_path = Path(args.csv) if args.csv else None
@@ -774,14 +789,14 @@ def main() -> None:
     embedder = build_embedder()
     with GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD)) as driver:
         driver.verify_connectivity()
-        graph = load_graph(driver, args.min_rel_confidence)
+        graph = load_graph(driver, args.min_rel_confidence) if max_graph_k > 0 else {"nodes": [], "relationships": []}
         for index, row in enumerate(rows, start=1):
             question = str(row.get("question") or "").strip()
             if not question:
                 raise ValueError(f"Missing question for row {row.get('id')}")
             print(f"[{index}/{len(rows)}] {row.get('id')} {question}")
             vector_items = retrieve_vector_context(driver, embedder, question, max_vector_k)
-            rels = retrieve_facts(question, graph, max_graph_k)
+            rels = retrieve_facts(question, graph, max_graph_k) if max_graph_k > 0 else []
             result = evaluate_sample(
                 row,
                 vector_items,
@@ -790,6 +805,7 @@ def main() -> None:
                 graph_ks,
                 run_answer=args.run_answer or args.judge_answer,
                 judge_answer=args.judge_answer,
+                mode=args.mode,
             )
             results.append(result)
 
@@ -801,6 +817,7 @@ def main() -> None:
             "database": NEO4J_DATABASE,
             "vector_index": VECTOR_INDEX_NAME,
             "min_relationship_confidence": args.min_rel_confidence,
+            "mode": args.mode,
         },
         "ks": ks,
         "graph_ks": graph_ks,

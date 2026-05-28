@@ -476,6 +476,20 @@ ONLINE
 
 ## 10. 召回评价系统
 
+更完整的 KG / GraphRAG 评价说明见：
+
+```text
+eval\README_KG_ANSWER_EVAL.md
+```
+
+三类正式检查：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate_kg_gold.py --extraction output\deepseek_kg_extraction.json --gold eval\kg_gold.example.jsonl --output output\kg_gold_eval.json
+.\.venv\Scripts\python.exe scripts\compare_graphrag_modes.py --dataset eval\retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --judge-answer --output output\graphrag_mode_compare.json
+.\.venv\Scripts\python.exe scripts\audit_page_continuity.py --input data\pipeline_20260522_110658 --output output\page_continuity_audit.json
+```
+
 评测脚本：
 
 ```text

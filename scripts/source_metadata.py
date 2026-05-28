@@ -45,6 +45,10 @@ def source_ref(document: str, page_start: int | None, page_end: int | None, chun
     return f"{document}#page={page}#chunk={chunk}"
 
 
+def page_neighbor_ref(document: str, page: int, side: str) -> str:
+    return f"{document}#page={page}#boundary={side}"
+
+
 def find_page_spans(text: str) -> list[PageSpan]:
     matches = list(PAGE_MARKER_RE.finditer(text or ""))
     spans: list[PageSpan] = []
@@ -53,6 +57,10 @@ def find_page_spans(text: str) -> list[PageSpan]:
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         spans.append(PageSpan(page=int(match.group("page")), start=start, end=end))
     return spans
+
+
+def strip_page_markers(text: str) -> str:
+    return PAGE_MARKER_RE.sub("", text or "").strip()
 
 
 def page_range_for_offsets(
