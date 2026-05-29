@@ -230,6 +230,14 @@ LOCAL_EMBEDDING_NORMALIZE=true
 
 如果不写 `--pages`，默认处理 PDF 全部页。
 
+PDF 会默认先按连续页窗口合并后再切 Chunk：`--page-window 20 --page-window-overlap 1`。这样第 20 页和第 21 页这类页边界不会因为“一页一个 txt”被硬切断，后续图谱关系和向量 Chunk 仍会保留 `page_start`、`page_end`、`page`、`source_ref`。
+
+如果只想保留旧的一页一个 txt 行为，可以加：
+
+```powershell
+--page-window 0
+```
+
 ### 4.4 强制 OCR
 
 有些 PDF 虽然看起来有文字层，但提取质量很差，可以强制 OCR：
@@ -275,11 +283,19 @@ dry-run 会生成抽取 JSON，但不会更新 Neo4j，也不会写入向量 Chu
 流水线模式会：
 
 ```text
-OCR 完第 1 页 → 立刻交给 DeepSeek worker 抽取
-OCR 第 2 页继续跑 → DeepSeek 同时处理第 1 页
-OCR 后续页持续入队 → 多个 DeepSeek worker 并发抽取
+OCR 完第 1 组连续页窗口 → 立刻交给 DeepSeek worker 抽取
+OCR 下一组页继续跑 → DeepSeek 同时处理上一组
+OCR 后续页持续按窗口入队 → 多个 DeepSeek worker 并发抽取
 每个 chunk 完成后 → 立即写入 Neo4j 和 Chunk.embedding
 ```
+
+默认页窗口是 20 页，窗口之间重叠 1 页，也就是等价于：
+
+```powershell
+--page-window 20 --page-window-overlap 1
+```
+
+这个默认值用于保留跨页句子和跨页证据。它通常不会让总耗时变长，因为 DeepSeek 抽取次数会从“一页一次”变成“多页合并后按 chunk 次数处理”，调用次数一般会减少。首个 DeepSeek 任务会等到第一组页准备好后开始。
 
 运行时会显示进度条：
 
@@ -298,6 +314,8 @@ Pipeline 35/100 [########----------------] 12:30/35:42
 - `--workers 3`：DeepSeek 并发抽取数量，建议先用 2 或 3。
 - `--pages 30-80`：只处理需要的页，速度提升最明显。
 - `--force-ocr`：扫描版 PDF 建议加上。
+- `--page-window 20`：默认把连续 20 页合并成一个带页码标记的文本后再切 Chunk。
+- `--page-window-overlap 1`：默认相邻页窗口重叠 1 页，用来保护跨页句子和跨页关系。
 - `--reset-vector`：只有想清空旧 Chunk 重新建向量时才加。
 
 注意：并发越高不一定越快，可能遇到 API 限速，也会增加同时请求数量。建议从：

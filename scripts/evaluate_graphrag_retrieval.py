@@ -3,6 +3,8 @@ import json
 import math
 import os
 import re
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -764,7 +766,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ks", default="3,5,10", help="Vector/citation K values, e.g. 3,5,10.")
     parser.add_argument("--graph-ks", default=None, help="Graph K values. Defaults to --ks.")
     parser.add_argument("--min-rel-confidence", type=float, default=0.70, help="Minimum relationship confidence used by graph retrieval.")
-    parser.add_argument("--mode", choices=["hybrid", "vector", "graph"], default="hybrid", help="Which evidence source to evaluate.")
+    parser.add_argument("--mode", choices=["hybrid", "vector", "graph", "all"], default="hybrid", help="Which evidence source to evaluate. Use all to compare vector, graph, and hybrid in one run.")
     parser.add_argument("--run-answer", action="store_true", help="Also call the configured LLM and compute answer-level metrics.")
     parser.add_argument("--judge-answer", action="store_true", help="Use the configured LLM as a judge for answer support and hallucination.")
     return parser.parse_args()
@@ -772,6 +774,32 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.mode == "all":
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = Path(args.output) if args.output else Path("output") / f"graphrag_mode_compare_{run_id}.json"
+        command = [
+            sys.executable,
+            "scripts/compare_graphrag_modes.py",
+            "--dataset",
+            args.dataset,
+            "--ks",
+            args.ks,
+            "--graph-ks",
+            args.graph_ks or args.ks,
+            "--min-rel-confidence",
+            str(args.min_rel_confidence),
+            "--output",
+            str(output_path),
+        ]
+        if args.judge_answer:
+            command.append("--judge-answer")
+        elif args.run_answer:
+            command.append("--run-answer")
+        if args.csv:
+            command.extend(["--csv", args.csv])
+        subprocess.run(command, check=True)
+        return
+
     dataset_path = Path(args.dataset)
     rows = load_dataset(dataset_path)
     if not rows:

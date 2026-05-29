@@ -9,6 +9,7 @@ from build_kg_with_deepseek import build as build_kg
 from build_kg_with_deepseek import read_text_file
 from build_vector_chunks import build as build_vector_chunks
 from ocr_pdf_to_text import ocr_pdf
+from page_windowing import PageText, page_section, safe_stem, windowed_consecutive_pages, write_page_window
 
 
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".pdf"}
@@ -21,11 +22,6 @@ def parse_pages(value: str | None) -> str:
     return value or "all"
 
 
-def safe_stem(path: Path) -> str:
-    cleaned = "".join(char if char.isalnum() or char in "-_." else "_" for char in path.stem)
-    return cleaned.strip("_") or "document"
-
-
 def has_pdf_text(path: Path, sample_pages: int = 5, min_chars: int = 80) -> bool:
     reader = PdfReader(str(path))
     total_chars = 0
@@ -36,17 +32,29 @@ def has_pdf_text(path: Path, sample_pages: int = 5, min_chars: int = 80) -> bool
     return False
 
 
-def extract_pdf_text_pages(path: Path, output_dir: Path, pages: str) -> list[Path]:
+def write_page_windows(path: Path, output_dir: Path, pages: list[PageText], page_window: int, page_window_overlap: int) -> list[Path]:
+    if page_window > 0:
+        return [
+            write_page_window(path, window, output_dir)
+            for window in windowed_consecutive_pages(pages, page_window, page_window_overlap)
+        ]
+    outputs = []
+    for item in pages:
+        output_path = output_dir / f"{safe_stem(path)}_page_{item.page:04d}.txt"
+        output_path.write_text(page_section(item.page, item.text), encoding="utf-8")
+        outputs.append(output_path)
+    return outputs
+
+
+def extract_pdf_text_pages(path: Path, output_dir: Path, pages: str, page_window: int, page_window_overlap: int) -> list[Path]:
     reader = PdfReader(str(path))
     selected_pages = select_pages(pages, len(reader.pages))
-    outputs: list[Path] = []
+    page_texts: list[PageText] = []
     for page_number in selected_pages:
         page = reader.pages[page_number - 1]
         text = page.extract_text() or ""
-        output_path = output_dir / f"{safe_stem(path)}_page_{page_number:04d}.txt"
-        output_path.write_text(f"===== PAGE {page_number} =====\n{text.strip()}\n", encoding="utf-8")
-        outputs.append(output_path)
-    return outputs
+        page_texts.append(PageText(page_number, text))
+    return write_page_windows(path, output_dir, page_texts, page_window, page_window_overlap)
 
 
 def select_pages(value: str, total_pages: int) -> list[int]:
@@ -90,6 +98,8 @@ def prepare_text_files(
     pages: str,
     force_ocr: bool,
     zoom: float,
+    page_window: int,
+    page_window_overlap: int,
 ) -> list[Path]:
     source_dir.mkdir(parents=True, exist_ok=True)
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -121,13 +131,28 @@ def prepare_text_files(
             if force_ocr or not has_pdf_text(source_path):
                 print(f"- OCR PDF pages: {selected_pages}")
                 page_numbers = select_pages(selected_pages, len(PdfReader(str(source_path)).pages))
+                page_texts: list[PageText] = []
                 for page_number in page_numbers:
                     output_path = output_dir / f"{safe_stem(source_path)}_page_{page_number:04d}.txt"
                     ocr_pdf(source_path, output_path, str(page_number), zoom=zoom, write_page_files=False)
-                    prepared_files.append(output_path)
+                    text = output_path.read_text(encoding="utf-8")
+                    page_texts.append(PageText(page_number, text))
+                for page_file in output_dir.glob(f"{safe_stem(source_path)}_page_*.txt"):
+                    page_file.unlink(missing_ok=True)
+                prepared_files.extend(
+                    write_page_windows(source_path, output_dir, page_texts, page_window, page_window_overlap)
+                )
             else:
                 print(f"- extract embedded PDF text pages: {selected_pages}")
-                prepared_files.extend(extract_pdf_text_pages(source_path, output_dir, selected_pages))
+                prepared_files.extend(
+                    extract_pdf_text_pages(
+                        source_path,
+                        output_dir,
+                        selected_pages,
+                        page_window,
+                        page_window_overlap,
+                    )
+                )
 
     return prepared_files
 
@@ -148,6 +173,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pages", default=None, help="PDF pages, e.g. 30-40, 1,5,8, or all. Defaults to all.")
     parser.add_argument("--force-ocr", action="store_true", help="Force OCR for PDFs even if embedded text exists.")
     parser.add_argument("--zoom", type=float, default=1.8, help="PDF render zoom for OCR.")
+    parser.add_argument("--page-window", type=int, default=20, help="Merge this many consecutive PDF pages before chunking. Use 0 to keep one file per page.")
+    parser.add_argument("--page-window-overlap", type=int, default=1, help="How many pages adjacent merged windows overlap.")
     parser.add_argument("--dry-run", action="store_true", help="Only extract KG JSON, do not write Neo4j.")
     parser.add_argument("--skip-kg", action="store_true", help="Only prepare text and vector chunks, skip KG extraction.")
     parser.add_argument("--skip-vector", action="store_true", help="Only prepare text and KG extraction, skip vector chunks.")
@@ -159,6 +186,8 @@ def main() -> None:
     args = parse_args()
     source_dir = Path(args.source)
     data_dir = Path(args.data)
+    if args.page_window > 0 and args.page_window_overlap >= args.page_window:
+        raise ValueError("--page-window-overlap must be smaller than --page-window")
 
     prepared_files = prepare_text_files(
         source_dir=source_dir,
@@ -167,6 +196,8 @@ def main() -> None:
         pages=args.pages,
         force_ocr=args.force_ocr,
         zoom=args.zoom,
+        page_window=args.page_window,
+        page_window_overlap=args.page_window_overlap,
     )
 
     if not prepared_files:

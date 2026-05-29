@@ -3,6 +3,10 @@ from dataclasses import dataclass
 
 
 PAGE_FILE_RE = re.compile(r"^(?P<document>.+?)_page_(?P<page>\d{1,6})\.txt$", re.IGNORECASE)
+PAGE_RANGE_FILE_RE = re.compile(
+    r"^(?P<document>.+?)_pages_(?P<start>\d{1,6})_(?P<end>\d{1,6})\.txt$",
+    re.IGNORECASE,
+)
 PAGE_MARKER_RE = re.compile(r"(?m)^\s*(?:===== PAGE|\[Page)\s+(?P<page>\d+)\s*(?:=====\s*|\]\s*)?$")
 
 
@@ -18,6 +22,9 @@ def clean_document_name(source: str) -> str:
     match = PAGE_FILE_RE.match(source or "")
     if match:
         name = match.group("document")
+    range_match = PAGE_RANGE_FILE_RE.match(source or "")
+    if range_match:
+        name = range_match.group("document")
     name = name.replace("_", " ")
     name = re.split(r"\b(?:z-library|1lib|z-lib)\b", name, maxsplit=1, flags=re.IGNORECASE)[0]
     name = re.sub(r"\(\s*\d+\s*\)$", "", name).strip()

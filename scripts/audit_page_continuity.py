@@ -7,8 +7,8 @@ from typing import Any
 from build_kg_with_deepseek import iter_input_files, read_document, split_text
 from source_metadata import (
     PAGE_FILE_RE,
+    PAGE_MARKER_RE,
     clean_document_name,
-    find_page_spans,
     page_from_source,
     page_neighbor_ref,
     strip_page_markers,
@@ -48,12 +48,12 @@ def chunk_contains_boundary_text(chunk: Any, tail: str, head: str, min_chars: in
 
 
 def page_segments(text: str) -> list[dict[str, Any]]:
-    spans = find_page_spans(text)
+    spans = list(PAGE_MARKER_RE.finditer(text))
     pages = []
     for index, span in enumerate(spans):
-        start = span.end
-        end = spans[index + 1].start if index + 1 < len(spans) else len(text)
-        pages.append({"page": span.page, "text": text[start:end]})
+        start = span.end()
+        end = spans[index + 1].start() if index + 1 < len(spans) else len(text)
+        pages.append({"page": int(span.group("page")), "text": text[start:end]})
     return pages
 
 
@@ -153,7 +153,7 @@ def audit_page_file_group(
             continue
         text = read_document(path)
         page_texts.append({"page": page, "text": text})
-        joined_parts.append(text if find_page_spans(text) else f"===== PAGE {page} =====\n{text}")
+        joined_parts.append(text if PAGE_MARKER_RE.search(text) else f"===== PAGE {page} =====\n{text}")
 
     joined_text = "\n\n".join(joined_parts)
     chunks = split_text(joined_text, source=f"{document_key}.txt")

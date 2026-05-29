@@ -39,6 +39,7 @@ from build_vector_chunks import (
 from local_embeddings import build_embedder
 from source_metadata import page_label
 from progress import ProgressTracker
+from page_windowing import PageText, page_section, safe_stem, windowed_consecutive_pages, write_page_window
 
 
 load_dotenv()
@@ -102,11 +103,6 @@ def parse_pages(value: str | None, total_pages: int) -> list[int]:
     return [page for page in sorted(pages) if 1 <= page <= total_pages]
 
 
-def safe_stem(path: Path) -> str:
-    cleaned = "".join(char if char.isalnum() or char in "-_." else "_" for char in path.stem)
-    return cleaned.strip("_") or "document"
-
-
 def collect_source_files(source_dir: Path, filename: str | None) -> list[Path]:
     if filename:
         file_path = source_dir / filename
@@ -123,7 +119,7 @@ def collect_source_files(source_dir: Path, filename: str | None) -> list[Path]:
     )
 
 
-def count_work_items(source_files: list[Path], pages: str | None) -> int:
+def count_work_items(source_files: list[Path], pages: str | None, page_window: int, page_window_overlap: int) -> int:
     total = 0
     for source_path in source_files:
         suffix = source_path.suffix.lower()
@@ -131,7 +127,17 @@ def count_work_items(source_files: list[Path], pages: str | None) -> int:
             total += 1
         elif suffix == ".pdf":
             doc = fitz.open(source_path)
-            total += len(parse_pages(pages, doc.page_count))
+            page_numbers = parse_pages(pages, doc.page_count)
+            if page_window > 0:
+                total += len(
+                    windowed_consecutive_pages(
+                        [PageText(page, "") for page in page_numbers],
+                        page_window,
+                        page_window_overlap,
+                    )
+                )
+            else:
+                total += len(page_numbers)
             doc.close()
     return total
 
@@ -150,8 +156,13 @@ def pdf_has_text(path: Path, sample_pages: int = 5, min_chars: int = 80) -> bool
 
 def write_text_page(path: Path, page_number: int, text: str, output_dir: Path) -> PreparedDocument:
     output_path = output_dir / f"{safe_stem(path)}_page_{page_number:04d}.txt"
-    output_path.write_text(f"===== PAGE {page_number} =====\n{text.strip()}\n", encoding="utf-8")
+    output_path.write_text(page_section(page_number, text), encoding="utf-8")
     return PreparedDocument(path=output_path, source_name=output_path.name)
+
+
+def enqueue_page_window(source_path: Path, pages: list[PageText], output_dir: Path, work_queue: queue.Queue) -> None:
+    output_path = write_page_window(source_path, pages, output_dir)
+    work_queue.put(PreparedDocument(path=output_path, source_name=output_path.name))
 
 
 def producer(
@@ -161,6 +172,8 @@ def producer(
     pages: str | None,
     force_ocr: bool,
     zoom: float,
+    page_window: int,
+    page_window_overlap: int,
     progress: ProgressTracker,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -184,6 +197,9 @@ def producer(
         ocr = RapidOCR() if use_ocr else None
         mode = "OCR" if use_ocr else "text"
         print(f"- PDF mode: {mode}, pages: {len(selected_pages)}")
+        if page_window > 0:
+            print(f"- page window merge: {page_window} pages, overlap {page_window_overlap}")
+            buffered_pages: list[PageText] = []
 
         for page_number in selected_pages:
             page = doc.load_page(page_number - 1)
@@ -198,8 +214,23 @@ def producer(
             else:
                 text = page.get_text()
 
-            prepared = write_text_page(source_path, page_number, text, output_dir)
-            work_queue.put(prepared)
+            if page_window > 0:
+                if buffered_pages and page_number != buffered_pages[-1].page + 1:
+                    if buffered_pages:
+                        enqueue_page_window(source_path, buffered_pages, output_dir, work_queue)
+                    buffered_pages = []
+                buffered_pages.append(PageText(page_number, text))
+                if len(buffered_pages) >= page_window:
+                    window = buffered_pages[:page_window]
+                    enqueue_page_window(source_path, window, output_dir, work_queue)
+                    keep = page_window_overlap
+                    buffered_pages = buffered_pages[-keep:] if keep else []
+            else:
+                prepared = write_text_page(source_path, page_number, text, output_dir)
+                work_queue.put(prepared)
+
+        if page_window > 0 and buffered_pages:
+            enqueue_page_window(source_path, buffered_pages, output_dir, work_queue)
         doc.close()
 
 
@@ -270,6 +301,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=3, help="DeepSeek extraction worker count.")
     parser.add_argument("--force-ocr", action="store_true", help="Force OCR for PDFs even if embedded text exists.")
     parser.add_argument("--zoom", type=float, default=1.8, help="PDF render zoom for OCR.")
+    parser.add_argument("--page-window", type=int, default=20, help="Merge this many consecutive PDF pages before chunking. Use 0 to keep one file per page.")
+    parser.add_argument("--page-window-overlap", type=int, default=1, help="How many pages adjacent merged windows overlap.")
     parser.add_argument("--skip-kg", action="store_true", help="Only prepare text and vector chunks, skip KG extraction.")
     parser.add_argument("--skip-vector", action="store_true", help="Only build KG, skip vector chunks.")
     parser.add_argument("--reset-vector", action="store_true", help="Delete old Chunk nodes before writing new chunks.")
@@ -290,7 +323,10 @@ def main() -> None:
     prepared_dir = Path(args.data) / f"pipeline_{run_id}"
     output_path = Path(args.output) if args.output else Path("output") / f"pipeline_{run_id}_kg_extraction.json"
     json_log = ThreadSafeJsonLog(output_path)
-    total_work = count_work_items(source_files, args.pages)
+    if args.page_window > 0 and args.page_window_overlap >= args.page_window:
+        raise ValueError("--page-window-overlap must be smaller than --page-window")
+
+    total_work = count_work_items(source_files, args.pages, args.page_window, args.page_window_overlap)
     progress = ProgressTracker(total_work, label="Pipeline")
     progress.render(current="ready", force=True)
 
@@ -340,6 +376,8 @@ def main() -> None:
             pages=args.pages,
             force_ocr=args.force_ocr,
             zoom=args.zoom,
+            page_window=args.page_window,
+            page_window_overlap=args.page_window_overlap,
             progress=progress,
         )
 

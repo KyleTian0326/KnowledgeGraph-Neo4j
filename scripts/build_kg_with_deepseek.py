@@ -631,6 +631,7 @@ def build(input_path: Path, limit: int | None = None, dry_run: bool = False, out
                         "page_start": chunk.page_start,
                         "page_end": chunk.page_end,
                         "page": page_label(chunk.page_start, chunk.page_end),
+                        "text": chunk.text,
                         "extraction": extraction,
                     }
                 )
