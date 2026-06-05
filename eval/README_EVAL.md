@@ -12,7 +12,7 @@
 
 运行后会生成：
 - `output/graphrag_mode_compare.json`：三模式完整 JSON 报告。
-- `output/graphrag_mode_compare.md`：适合截图或放 PPT 的对比表。
+- `output/graphrag_mode_compare.md`： 对比表。
 - `output/graphrag_mode_compare.csv`：适合 Excel 打开的指标表。
 - `output/graphrag_mode_compare_parts/retrieval_eval_vector.json`、`retrieval_eval_graph.json`、`retrieval_eval_hybrid.json`：三种模式各自的明细报告。
 
