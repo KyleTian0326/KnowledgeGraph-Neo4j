@@ -6,32 +6,32 @@
 
 推荐先跑三模式对照，一次性比较 `vector`、`graph`、`hybrid`：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_graphrag_retrieval.py --dataset eval\retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --mode all --judge-answer --output output\graphrag_mode_compare.json
+```bash
+./.venv/bin/python scripts/evaluate_graphrag_retrieval.py --dataset eval/retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --mode all --judge-answer --output output/graphrag_mode_compare.json
 ```
 
 运行后会生成：
-- `output\graphrag_mode_compare.json`：三模式完整 JSON 报告。
-- `output\graphrag_mode_compare.md`：适合截图或放 PPT 的对比表。
-- `output\graphrag_mode_compare.csv`：适合 Excel 打开的指标表。
-- `output\graphrag_mode_compare_parts\retrieval_eval_vector.json`、`retrieval_eval_graph.json`、`retrieval_eval_hybrid.json`：三种模式各自的明细报告。
+- `output/graphrag_mode_compare.json`：三模式完整 JSON 报告。
+- `output/graphrag_mode_compare.md`：适合截图或放 PPT 的对比表。
+- `output/graphrag_mode_compare.csv`：适合 Excel 打开的指标表。
+- `output/graphrag_mode_compare_parts/retrieval_eval_vector.json`、`retrieval_eval_graph.json`、`retrieval_eval_hybrid.json`：三种模式各自的明细报告。
 
 如果只想跑单一 hybrid 模式：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_graphrag_retrieval.py --dataset eval\retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --output output\retrieval_eval_example.json --csv output\retrieval_eval_example.csv
+```bash
+./.venv/bin/python scripts/evaluate_graphrag_retrieval.py --dataset eval/retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --output output/retrieval_eval_example.json --csv output/retrieval_eval_example.csv
 ```
 
 如果要同时调用 DeepSeek 生成回答并评估答案关键词覆盖：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_graphrag_retrieval.py --dataset eval\retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --run-answer --output output\retrieval_eval_answer.json
+```bash
+./.venv/bin/python scripts/evaluate_graphrag_retrieval.py --dataset eval/retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --run-answer --output output/retrieval_eval_answer.json
 ```
 
 如果要让 DeepSeek 作为裁判判断答案支撑性、引用准确性、缺证据和幻觉：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_graphrag_retrieval.py --dataset eval\retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --judge-answer --output output\retrieval_eval_judge.json
+```bash
+./.venv/bin/python scripts/evaluate_graphrag_retrieval.py --dataset eval/retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --judge-answer --output output/retrieval_eval_judge.json
 ```
 
 ## 标注格式

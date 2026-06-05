@@ -2,6 +2,7 @@ import argparse
 import csv
 import json
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -303,7 +304,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-rel-confidence", type=float, default=0.70)
     parser.add_argument("--run-answer", action="store_true")
     parser.add_argument("--judge-answer", action="store_true")
-    parser.add_argument("--python", default=r".\.venv\Scripts\python.exe")
+    parser.add_argument("--python", default=sys.executable)
     parser.add_argument("--output", default=None)
     parser.add_argument("--markdown", default=None, help="Optional Markdown comparison table path. Defaults to output stem with .md.")
     parser.add_argument("--csv", default=None, help="Optional CSV comparison table path. Defaults to output stem with .csv.")

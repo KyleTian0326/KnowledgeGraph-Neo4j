@@ -1,5 +1,7 @@
 neo4j-graphrag[openai]
+PyMuPDF
 python-dotenv
+rapidocr-onnxruntime
 sentence-transformers
 torch
 transformers

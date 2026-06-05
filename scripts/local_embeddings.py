@@ -8,7 +8,7 @@ from typing import Any
 from neo4j_graphrag.embeddings.base import Embedder
 
 
-DEFAULT_QWEN_MODEL_PATH = r"C:\Users\Kyle\.cache\modelscope\hub\models\Qwen\Qwen3-Embedding-0___6B"
+DEFAULT_QWEN_MODEL_PATH = Path.home() / ".cache" / "modelscope" / "hub" / "models" / "Qwen" / "Qwen3-Embedding-0___6B"
 
 
 class HashingEmbedder(Embedder):

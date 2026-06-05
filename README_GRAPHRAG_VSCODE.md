@@ -21,39 +21,47 @@
 
 日常使用时，不需要重新配置。每次只需要：
 
-```powershell
-cd "E:\Desktop\石化大模型\Neo4j\工程文件"
-.\.venv\Scripts\python.exe scripts\web_graphrag_chat.py
+```bash
+cd /root/石化大模型/Neo4j/工程文件
+./.venv/bin/python scripts/web_graphrag_chat.py
 ```
 
 如果你新增了资料，把 `.pdf`、`.txt`、`.md` 放进 `source` 文件夹，然后运行：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ingest_source.py
+```bash
+./.venv/bin/python scripts/ingest_source.py
 ```
 
 如果你要清空旧图谱和旧向量，从头重建，先启动 Neo4j，再按下面顺序运行：
 
-```powershell
-.\.venv\Scripts\python.exe -c "from dotenv import load_dotenv; from pathlib import Path; import os; from neo4j import GraphDatabase; load_dotenv(Path('.env')); driver=GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USERNAME'), os.getenv('NEO4J_PASSWORD'))); db=os.getenv('NEO4J_DATABASE','neo4j'); driver.execute_query('DROP INDEX chunk_vector_index IF EXISTS', database_=db); driver.execute_query('MATCH ()-[r]->() WHERE r.deepseek_kg = true DELETE r', database_=db); driver.execute_query('MATCH (n) WHERE n.deepseek_kg = true DETACH DELETE n', database_=db); driver.execute_query('MATCH (c:Chunk) WHERE c.vector_kg = true DETACH DELETE c', database_=db); driver.execute_query('MATCH (d:Document) WHERE NOT (d)--() DELETE d', database_=db); driver.close(); print('Old KG and vector chunks cleared.')"
-.\.venv\Scripts\python.exe scripts\build_kg_with_deepseek.py --input data\ingested_20260514_170608 --output output\rebuild_qwen3_kg_extraction.json
-.\.venv\Scripts\python.exe scripts\audit_kg_quality.py output\rebuild_qwen3_kg_extraction.json
-.\.venv\Scripts\python.exe scripts\build_vector_chunks.py --input data\ingested_20260514_170608 --reset
+```bash
+./.venv/bin/python -c "from dotenv import load_dotenv; from pathlib import Path; import os; from neo4j import GraphDatabase; load_dotenv(Path('.env')); driver=GraphDatabase.driver(os.getenv('NEO4J_URI'), auth=(os.getenv('NEO4J_USERNAME'), os.getenv('NEO4J_PASSWORD'))); db=os.getenv('NEO4J_DATABASE','neo4j'); driver.execute_query('DROP INDEX chunk_vector_index IF EXISTS', database_=db); driver.execute_query('MATCH ()-[r]->() WHERE r.deepseek_kg = true DELETE r', database_=db); driver.execute_query('MATCH (n) WHERE n.deepseek_kg = true DETACH DELETE n', database_=db); driver.execute_query('MATCH (c:Chunk) WHERE c.vector_kg = true DETACH DELETE c', database_=db); driver.execute_query('MATCH (d:Document) WHERE NOT (d)--() DELETE d', database_=db); driver.close(); print('Old KG and vector chunks cleared.')"
+./.venv/bin/python scripts/build_kg_with_deepseek.py --input data/ingested_20260514_170608 --output output/rebuild_qwen3_kg_extraction.json
+./.venv/bin/python scripts/audit_kg_quality.py output/rebuild_qwen3_kg_extraction.json
+./.venv/bin/python scripts/build_vector_chunks.py --input data/ingested_20260514_170608 --reset
 ```
 
 ## 0. 项目目录
 
 在 PowerShell 里先进入工程目录：
 
-```powershell
-cd "E:\Desktop\石化大模型\Neo4j\工程文件"
+```bash
+cd /root/石化大模型/Neo4j/工程文件
 ```
 
 后面的所有命令都默认在这个目录下执行。
 
 ## 1. 启动本地 Neo4j
 
-先打开 Neo4j Desktop / Neo4j App，启动你的本地数据库。
+当前容器已经安装 Neo4j Community 5。先在工程目录启动 Neo4j：
+
+```bash
+./start_neo4j_foreground.sh
+```
+
+看到日志输出 `Started.` 后，保持这个终端不要关闭，再开另一个终端运行后续 Python 命令。
+
+如果你是在自己的桌面环境，也可以打开 Neo4j Desktop / Neo4j App，启动你的本地数据库。
 
 当前 `.env` 默认连接：
 
@@ -68,8 +76,8 @@ NEO4J_DATABASE=neo4j
 
 启动后先测试连接：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\check_neo4j.py
+```bash
+./.venv/bin/python scripts/check_neo4j.py
 ```
 
 如果成功，说明 Python 已经能连上 Neo4j。
@@ -79,13 +87,13 @@ NEO4J_DATABASE=neo4j
 本工程使用本地虚拟环境：
 
 ```text
-.venv\Scripts\python.exe
+.venv/bin/python
 ```
 
 如果依赖缺失，运行：
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```bash
+./.venv/bin/python -m pip install -r requirements.txt
 ```
 
 ## 3. 检查 DeepSeek 配置
@@ -104,8 +112,8 @@ LLM_MODEL=deepseek-v4-flash
 
 可以用下面命令测试模型是否能调用：
 
-```powershell
-.\.venv\Scripts\python.exe -c "from dotenv import load_dotenv; from openai import OpenAI; from pathlib import Path; import os; load_dotenv(Path('.env')); client=OpenAI(api_key=os.getenv('DEEPSEEK_API_KEY'), base_url=os.getenv('DEEPSEEK_BASE_URL','https://api.deepseek.com')); model=os.getenv('DEEPSEEK_MODEL','deepseek-v4-flash'); extra={'extra_body': {'thinking': {'type': 'disabled'}}} if model.startswith('deepseek-v4') else {}; response=client.chat.completions.create(model=model, messages=[{'role':'user','content':'Reply with exactly: ok'}], max_tokens=10, **extra); print(response.choices[0].message.content)"
+```bash
+./.venv/bin/python -c "from dotenv import load_dotenv; from openai import OpenAI; from pathlib import Path; import os; load_dotenv(Path('.env')); client=OpenAI(api_key=os.getenv('DEEPSEEK_API_KEY'), base_url=os.getenv('DEEPSEEK_BASE_URL','https://api.deepseek.com')); model=os.getenv('DEEPSEEK_MODEL','deepseek-v4-flash'); extra={'extra_body': {'thinking': {'type': 'disabled'}}} if model.startswith('deepseek-v4') else {}; response=client.chat.completions.create(model=model, messages=[{'role':'user','content':'Reply with exactly: ok'}], max_tokens=10, **extra); print(response.choices[0].message.content)"
 ```
 
 正常输出：
@@ -132,21 +140,21 @@ source
 
 如果没有 `source` 文件夹，先创建：
 
-```powershell
+```bash
 mkdir source
 ```
 
 然后把新资料复制进去，例如：
 
 ```text
-source\催化裂化装置操作指南.pdf
-source\工艺说明.txt
+source/催化裂化装置操作指南.pdf
+source/工艺说明.txt
 ```
 
 ### 4.1 默认处理 source 里的全部文件
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ingest_source.py
+```bash
+./.venv/bin/python scripts/ingest_source.py
 ```
 
 默认行为：
@@ -154,15 +162,15 @@ source\工艺说明.txt
 - 扫描 `source` 文件夹里的 `.pdf`、`.txt`、`.md`；
 - PDF 如果有文本层，就直接提取文本；
 - PDF 如果是扫描版，就自动 OCR；
-- 提取后的文本保存到 `data\ingested_时间戳\`；
+- 提取后的文本保存到 `data/ingested_时间戳/`；
 - PDF 会按页保存为 `资料名_page_0030.txt` 这类文件，文件内容开头也会写入 `===== PAGE 30 =====`；
 - 调用 DeepSeek 抽取实体和关系；
 - 把结果增量写入 Neo4j；
 - 调用 embedding，把原文切成 `Chunk` 并生成向量；
 - 把向量写入 `Chunk.embedding`；
 - 创建或更新 Neo4j 向量索引 `chunk_vector_index`；
-- 抽取 JSON 保存到 `output\ingested_时间戳_kg_extraction.json`；
-- 同时更新一份最新结果到 `output\deepseek_kg_extraction.json`；
+- 抽取 JSON 保存到 `output/ingested_时间戳_kg_extraction.json`；
+- 同时更新一份最新结果到 `output/deepseek_kg_extraction.json`；
 - `Chunk` 和图谱关系会保存 `document`、`page_start`、`page_end`、`page`、`source_ref`，方便问答时显示资料出处。
 
 这条命令不会清空原来的知识图谱。Neo4j 里用 `MERGE` 合并节点和关系，所以你的知识库会在原来的基础上逐渐积累。
@@ -176,7 +184,7 @@ source\工艺说明.txt
 - DeepSeek 抽取出的图谱关系边会保存同样的页码字段，并额外累积 `source_refs`，用于追溯多个支持证据；
 - Web 问答返回引用时，会优先显示 `资料名，第 N 页`，这样可以回到原 PDF 对照确认。
 
-注意：旧数据库里已经存在的 Chunk 和图谱关系不会自动补齐新字段。如果你要让旧资料也带准确页码，建议先清空旧 KG/向量，再从 `source` 里的 PDF 重新运行 `scripts\ingest_source.py`。如果直接复用旧 `data` 文件夹，只有文本里本身带 `===== PAGE N =====` 标记的资料才能恢复页码。
+注意：旧数据库里已经存在的 Chunk 和图谱关系不会自动补齐新字段。如果你要让旧资料也带准确页码，建议先清空旧 KG/向量，再从 `source` 里的 PDF 重新运行 `scripts/ingest_source.py`。如果直接复用旧 `data` 文件夹，只有文本里本身带 `===== PAGE N =====` 标记的资料才能恢复页码。
 
 这里要区分两种数据：
 
@@ -193,14 +201,14 @@ source\工艺说明.txt
 当前版本默认使用本地 `Qwen3-Embedding-0.6B` 语义向量模型：
 
 ```text
-scripts\local_embeddings.py
+scripts/local_embeddings.py
 ```
 
 模型路径在 `.env` 中配置：
 
 ```env
 LOCAL_EMBEDDING_PROVIDER=qwen
-LOCAL_EMBEDDING_MODEL_PATH=C:\Users\Kyle\.cache\modelscope\hub\models\Qwen\Qwen3-Embedding-0___6B
+LOCAL_EMBEDDING_MODEL_PATH=/root/.cache/modelscope/hub/models/Qwen/Qwen3-Embedding-0___6B
 LOCAL_EMBEDDING_DEVICE=cpu
 LOCAL_EMBEDDING_DIMENSIONS=1024
 LOCAL_EMBEDDING_NORMALIZE=true
@@ -210,22 +218,22 @@ LOCAL_EMBEDDING_NORMALIZE=true
 
 ### 4.2 只处理 source 里的某一个文件
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ingest_source.py --file "催化裂化装置操作指南.pdf"
+```bash
+./.venv/bin/python scripts/ingest_source.py --file "催化裂化装置操作指南.pdf"
 ```
 
 注意：`--file` 后面写的是 `source` 文件夹里的文件名，不需要写完整路径。
 
 ### 4.3 只处理 PDF 的指定页数
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ingest_source.py --file "催化裂化装置操作指南.pdf" --pages 30-35
+```bash
+./.venv/bin/python scripts/ingest_source.py --file "催化裂化装置操作指南.pdf" --pages 30-35
 ```
 
 也可以写多个页码或区间：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ingest_source.py --file "催化裂化装置操作指南.pdf" --pages 1,5,20-30
+```bash
+./.venv/bin/python scripts/ingest_source.py --file "催化裂化装置操作指南.pdf" --pages 1,5,20-30
 ```
 
 如果不写 `--pages`，默认处理 PDF 全部页。
@@ -234,7 +242,7 @@ PDF 会默认先按连续页窗口合并后再切 Chunk：`--page-window 20 --pa
 
 如果只想保留旧的一页一个 txt 行为，可以加：
 
-```powershell
+```bash
 --page-window 0
 ```
 
@@ -242,14 +250,14 @@ PDF 会默认先按连续页窗口合并后再切 Chunk：`--page-window 20 --pa
 
 有些 PDF 虽然看起来有文字层，但提取质量很差，可以强制 OCR：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ingest_source.py --file "催化裂化装置操作指南.pdf" --pages 30-35 --force-ocr
+```bash
+./.venv/bin/python scripts/ingest_source.py --file "催化裂化装置操作指南.pdf" --pages 30-35 --force-ocr
 ```
 
 ### 4.5 只测试抽取，不写入 Neo4j
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ingest_source.py --file "催化裂化装置操作指南.pdf" --pages 30-35 --dry-run
+```bash
+./.venv/bin/python scripts/ingest_source.py --file "催化裂化装置操作指南.pdf" --pages 30-35 --dry-run
 ```
 
 dry-run 会生成抽取 JSON，但不会更新 Neo4j，也不会写入向量 Chunk。
@@ -260,8 +268,8 @@ dry-run 会生成抽取 JSON，但不会更新 Neo4j，也不会写入向量 Chu
 
 只有当你想清空旧 Chunk 并重新构建向量检索时，才运行：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ingest_source.py --reset-vector
+```bash
+./.venv/bin/python scripts/ingest_source.py --reset-vector
 ```
 
 ### 4.7 快速模式：OCR 和 DeepSeek 同时跑
@@ -276,8 +284,8 @@ dry-run 会生成抽取 JSON，但不会更新 Neo4j，也不会写入向量 Chu
 
 如果 PDF 页数很多，可以用流水线脚本：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ingest_source_pipeline.py --file "催化裂化装置操作指南.pdf" --pages 30-80 --workers 3 --force-ocr
+```bash
+./.venv/bin/python scripts/ingest_source_pipeline.py --file "催化裂化装置操作指南.pdf" --pages 30-80 --workers 3 --force-ocr
 ```
 
 流水线模式会：
@@ -291,7 +299,7 @@ OCR 后续页持续按窗口入队 → 多个 DeepSeek worker 并发抽取
 
 默认页窗口是 20 页，窗口之间重叠 1 页，也就是等价于：
 
-```powershell
+```bash
 --page-window 20 --page-window-overlap 1
 ```
 
@@ -320,13 +328,13 @@ Pipeline 35/100 [########----------------] 12:30/35:42
 
 注意：并发越高不一定越快，可能遇到 API 限速，也会增加同时请求数量。建议从：
 
-```powershell
+```bash
 --workers 2
 ```
 
 或：
 
-```powershell
+```bash
 --workers 3
 ```
 
@@ -382,27 +390,27 @@ ONLINE
 
 例如只 OCR 第 30 到 35 页：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ocr_pdf_to_text.py --input "data\催化裂化装置操作指南 第2版 (张韩，刘英聚编著) (z-library.sk, 1lib.sk, z-lib.sk) (1).pdf" --output data\fcc_ocr_pages_30_35.txt --pages 30-35
+```bash
+./.venv/bin/python scripts/ocr_pdf_to_text.py --input "data/催化裂化装置操作指南 第2版 (张韩，刘英聚编著) (z-library.sk, 1lib.sk, z-lib.sk) (1).pdf" --output data/fcc_ocr_pages_30_35.txt --pages 30-35
 ```
 
 如果要 OCR 更多页，可以改 `--pages`：
 
-```powershell
+```bash
 --pages 30-80
 ```
 
 OCR 后的文本会保存到：
 
 ```text
-data\fcc_ocr_pages_30_35.txt
+data/fcc_ocr_pages_30_35.txt
 ```
 
 同时会额外生成按页文本，例如：
 
 ```text
-data\fcc_ocr_pages_30_35_page_0030.txt
-data\fcc_ocr_pages_30_35_page_0031.txt
+data/fcc_ocr_pages_30_35_page_0030.txt
+data/fcc_ocr_pages_30_35_page_0031.txt
 ```
 
 这些按页文本的文件名和正文页码标记会被后续 Chunk 与知识图谱关系继承，用于 Web 问答里的出处引用。
@@ -411,8 +419,8 @@ data\fcc_ocr_pages_30_35_page_0031.txt
 
 对 OCR 后的文本抽取实体和关系：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\build_kg_with_deepseek.py --input data\fcc_ocr_pages_30_35.txt
+```bash
+./.venv/bin/python scripts/build_kg_with_deepseek.py --input data/fcc_ocr_pages_30_35.txt
 ```
 
 这个脚本会：
@@ -422,12 +430,12 @@ data\fcc_ocr_pages_30_35_page_0031.txt
 - 调用 DeepSeek；
 - 抽取实体和关系；
 - 写入 Neo4j；
-- 在 `output\deepseek_kg_extraction.json` 保存抽取结果。
+- 在 `output/deepseek_kg_extraction.json` 保存抽取结果。
 
 如果你想先看抽取质量，不写入 Neo4j，可以 dry-run：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\build_kg_with_deepseek.py --input data\fcc_ocr_pages_30_35.txt --dry-run --output output\deepseek_kg_extraction.json
+```bash
+./.venv/bin/python scripts/build_kg_with_deepseek.py --input data/fcc_ocr_pages_30_35.txt --dry-run --output output/deepseek_kg_extraction.json
 ```
 
 ## 8. 手动流程：创建 Chunk、Embedding 和向量索引
@@ -441,8 +449,8 @@ data\fcc_ocr_pages_30_35_page_0031.txt
 
 运行：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\build_vector_chunks.py --input data\fcc_ocr_pages_30_35.txt --reset
+```bash
+./.venv/bin/python scripts/build_vector_chunks.py --input data/fcc_ocr_pages_30_35.txt --reset
 ```
 
 这个脚本会创建：
@@ -497,33 +505,33 @@ ONLINE
 更完整的 KG / GraphRAG 评价说明见：
 
 ```text
-eval\README_KG_ANSWER_EVAL.md
+eval/README_KG_ANSWER_EVAL.md
 ```
 
 三类正式检查：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_kg_gold.py --extraction output\deepseek_kg_extraction.json --gold eval\kg_gold.example.jsonl --output output\kg_gold_eval.json
-.\.venv\Scripts\python.exe scripts\compare_graphrag_modes.py --dataset eval\retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --judge-answer --output output\graphrag_mode_compare.json
-.\.venv\Scripts\python.exe scripts\audit_page_continuity.py --input data\pipeline_20260522_110658 --output output\page_continuity_audit.json
+```bash
+./.venv/bin/python scripts/evaluate_kg_gold.py --extraction output/deepseek_kg_extraction.json --gold eval/kg_gold.example.jsonl --output output/kg_gold_eval.json
+./.venv/bin/python scripts/compare_graphrag_modes.py --dataset eval/retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --judge-answer --output output/graphrag_mode_compare.json
+./.venv/bin/python scripts/audit_page_continuity.py --input data/pipeline_20260522_110658 --output output/page_continuity_audit.json
 ```
 
 评测脚本：
 
 ```text
-scripts\evaluate_graphrag_retrieval.py
+scripts/evaluate_graphrag_retrieval.py
 ```
 
 样例评测集：
 
 ```text
-eval\retrieval_eval.example.jsonl
+eval/retrieval_eval.example.jsonl
 ```
 
 快速跑三层召回评价：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_graphrag_retrieval.py --dataset eval\retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --output output\retrieval_eval_example.json --csv output\retrieval_eval_example.csv
+```bash
+./.venv/bin/python scripts/evaluate_graphrag_retrieval.py --dataset eval/retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --output output/retrieval_eval_example.json --csv output/retrieval_eval_example.csv
 ```
 
 主要指标：
@@ -536,34 +544,34 @@ eval\retrieval_eval.example.jsonl
 
 如果要调用 DeepSeek 生成答案并评估答案关键词覆盖：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_graphrag_retrieval.py --dataset eval\retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --run-answer --output output\retrieval_eval_answer.json
+```bash
+./.venv/bin/python scripts/evaluate_graphrag_retrieval.py --dataset eval/retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --run-answer --output output/retrieval_eval_answer.json
 ```
 
 如果要让 DeepSeek 作为裁判判断答案支撑性、引用准确性、缺证据和幻觉：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_graphrag_retrieval.py --dataset eval\retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --judge-answer --output output\retrieval_eval_judge.json
+```bash
+./.venv/bin/python scripts/evaluate_graphrag_retrieval.py --dataset eval/retrieval_eval.example.jsonl --ks 3,5,10 --graph-ks 5,10 --judge-answer --output output/retrieval_eval_judge.json
 ```
 
 建议先把 `page_recall@5` 作为主指标，同时看 `citation_accuracy@5` 和 `triple_recall@10`。标注格式见：
 
 ```text
-eval\README_EVAL.md
+eval/README_EVAL.md
 ```
 
 ## 11. 启动 Web 聊天页面
 
 启动后端：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\web_graphrag_chat.py
+```bash
+./.venv/bin/python scripts/web_graphrag_chat.py
 ```
 
 或者双击 / 运行：
 
-```powershell
-.\start_web_chat.bat
+```bash
+./start_web_chat.sh
 ```
 
 然后浏览器打开：
@@ -587,13 +595,13 @@ http://127.0.0.1:7860
 
 如果 Neo4j 已经启动，并且 `.env` 配置正确，可以按这个顺序跑：
 
-```powershell
-cd "E:\Desktop\石化大模型\Neo4j\工程文件"
-.\.venv\Scripts\python.exe scripts\check_neo4j.py
-.\.venv\Scripts\python.exe scripts\ocr_pdf_to_text.py --input "data\催化裂化装置操作指南 第2版 (张韩，刘英聚编著) (z-library.sk, 1lib.sk, z-lib.sk) (1).pdf" --output data\fcc_ocr_pages_30_35.txt --pages 30-35
-.\.venv\Scripts\python.exe scripts\build_kg_with_deepseek.py --input data\fcc_ocr_pages_30_35.txt
-.\.venv\Scripts\python.exe scripts\build_vector_chunks.py --input data\fcc_ocr_pages_30_35.txt --reset
-.\.venv\Scripts\python.exe scripts\web_graphrag_chat.py
+```bash
+cd /root/石化大模型/Neo4j/工程文件
+./.venv/bin/python scripts/check_neo4j.py
+./.venv/bin/python scripts/ocr_pdf_to_text.py --input "data/催化裂化装置操作指南 第2版 (张韩，刘英聚编著) (z-library.sk, 1lib.sk, z-lib.sk) (1).pdf" --output data/fcc_ocr_pages_30_35.txt --pages 30-35
+./.venv/bin/python scripts/build_kg_with_deepseek.py --input data/fcc_ocr_pages_30_35.txt
+./.venv/bin/python scripts/build_vector_chunks.py --input data/fcc_ocr_pages_30_35.txt --reset
+./.venv/bin/python scripts/web_graphrag_chat.py
 ```
 
 最后打开：
@@ -618,8 +626,8 @@ NEO4J_PASSWORD=your-neo4j-password
 
 然后重新运行：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\check_neo4j.py
+```bash
+./.venv/bin/python scripts/check_neo4j.py
 ```
 
 ### 2. DeepSeek 返回空内容
@@ -636,16 +644,16 @@ extra_body={"thinking": {"type": "disabled"}}
 
 扫描版 PDF 不能直接用 `pypdf` 抽文字，要先运行：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\ocr_pdf_to_text.py --input 你的PDF --output data\xxx.txt --pages 30-50
+```bash
+./.venv/bin/python scripts/ocr_pdf_to_text.py --input 你的PDF --output data/xxx.txt --pages 30-50
 ```
 
 ### 4. Web 页面没有引用资料
 
 先确认已经运行过：
 
-```powershell
-.\.venv\Scripts\python.exe scripts\build_vector_chunks.py --input data\fcc_ocr_pages_30_35.txt --reset
+```bash
+./.venv/bin/python scripts/build_vector_chunks.py --input data/fcc_ocr_pages_30_35.txt --reset
 ```
 
 再到 Neo4j 里执行：
